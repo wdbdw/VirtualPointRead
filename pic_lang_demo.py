@@ -66,7 +66,6 @@ token_len = []
 
 
 def custom_standardization(input_string):
-    # 全部转为小写
     lowercase = tf.strings.lower(input_string)
     return tf.strings.regex_replace(lowercase, "[%s]" % re.escape(strip_chars), "")
 
@@ -89,7 +88,7 @@ vectorization.adapt(text_data)
 
 
 class PositionalEmbedding(layers.Layer):
-    # 位置编码
+
     def __init__(self, sequence_length, vocab_size, embed_dim, **kwargs):
         super().__init__()
         self.token_embeddings = layers.Embedding(
@@ -114,18 +113,15 @@ class PositionalEmbedding(layers.Layer):
         return embedded_tokens + embedded_positions
 
 def get_cnn_model():
-    # CNN模型
     base_model = efficientnet.EfficientNetB0(
         input_shape=(*IMAGE_SIZE, 3), include_top=False, weights="imagenet",
     )
-    # 冻住特征提取层
     base_model.trainable = False
     base_model_out = base_model.output
     base_model_out = layers.Reshape((-1, base_model_out.shape[-1]))(base_model_out)
     cnn_model = keras.models.Model(base_model.input, base_model_out)
     return cnn_model
 class TransformerEncoderBlock(layers.Layer):
- 
     def __init__(self, embed_dim, dense_dim, num_heads, **kwargs):
         super().__init__()
         self.embed_dim = embed_dim
@@ -148,7 +144,6 @@ class TransformerEncoderBlock(layers.Layer):
             attention_mask=None,
             training=training,
         )
-
         out_1 = self.layernorm_2(inputs + attention_output_1)
         return out_1
 
@@ -179,15 +174,11 @@ class TransformerDecoderBlock(layers.Layer):
         self.supports_masking = True
 
     def call(self, inputs, encoder_outputs, training, mask=None):
-        
-        # 获取位置编码，(N,24) --> (N,24,512)
         inputs = self.embedding(inputs)
         causal_mask = self.get_causal_attention_mask(inputs)
         padding_mask = tf.cast(mask[:, :, tf.newaxis], dtype=tf.int32)
         combined_mask = tf.cast(mask[:, tf.newaxis, :], dtype=tf.int32)
         combined_mask = tf.minimum(combined_mask, causal_mask)
-     
-        
         attention_output_1 = self.attention_1(
             query=inputs,
             value=inputs,
@@ -211,34 +202,21 @@ class TransformerDecoderBlock(layers.Layer):
 
         ffn_out = self.layernorm_3(ffn_out + out_2, training=training)
         ffn_out = self.dropout_2(ffn_out, training=training)
-        
-        # 最后输出为VOCAB_SIZE大小的向量，对应位置的大小为概率，可以查索引来获取相应原单词
         preds = self.out(ffn_out)
         return preds
 
     def get_causal_attention_mask(self, inputs):
-        '''
-        causal: 因果关系mask
-        '''
-        # (N,24,512)
         input_shape = tf.shape(inputs)
-        # 分别为N，24
         batch_size, sequence_length = input_shape[0], input_shape[1]
-
-        #范围0~24的列表，变成大小(24, 1)的数组
         i = tf.range(sequence_length)[:, tf.newaxis]
-        #范围0~24的列表
         j = tf.range(sequence_length)
         mask = tf.cast(i >= j, dtype="int32")
-        
-        # 大小为(1, 24, 24)
         mask = tf.reshape(mask, (1, input_shape[1], input_shape[1]))
         
         scale = tf.concat(
             [tf.expand_dims(batch_size, -1), tf.constant([1, 1], dtype=tf.int32)],
             axis=0,
         )
-        # (1, 24, 24)铺成(64, 24, 24)
         result = tf.tile(mask, scale)
 
         return result    
@@ -286,7 +264,6 @@ class ImageCaptioningModel(keras.Model):
     def train_step(self, batch_data):
      
         batch_img, batch_seq = batch_data
-
         batch_loss = 0
         batch_acc = 0
 
@@ -295,42 +272,28 @@ class ImageCaptioningModel(keras.Model):
         img_embed = self.cnn_model(batch_img)
         for i in range(self.num_captions_per_image):
             with tf.GradientTape() as tape:
-        
-                # batch_seq的shape：(64, 5, 25)
                 loss, acc = self._compute_caption_loss_and_acc(
                     img_embed, batch_seq[:, i, :], training=True
                 )
-
-
                 batch_loss += loss
                 batch_acc += acc
-
-
             train_vars = (
                 self.encoder.trainable_variables + self.decoder.trainable_variables
             )
 
-            # 获取梯度
             grads = tape.gradient(loss, train_vars)
-
-            # 更新参数
             self.optimizer.apply_gradients(zip(grads, train_vars))
-
-        # 更新
         batch_acc /= float(self.num_captions_per_image)
         self.loss_tracker.update_state(batch_loss)
         self.acc_tracker.update_state(batch_acc)
-
         return {"loss": self.loss_tracker.result(), "acc": self.acc_tracker.result()}
 
     def test_step(self, batch_data):
         batch_img, batch_seq = batch_data
         batch_loss = 0
         batch_acc = 0
-
         img_embed = self.cnn_model(batch_img)
         for i in range(self.num_captions_per_image):
-            
             loss, acc = self._compute_caption_loss_and_acc(
                 img_embed, batch_seq[:, i, :], training=False
             )
@@ -339,13 +302,10 @@ class ImageCaptioningModel(keras.Model):
             batch_acc += acc
 
         batch_acc /= float(self.num_captions_per_image)
-
         self.loss_tracker.update_state(batch_loss)
         self.acc_tracker.update_state(batch_acc)
-
         return {"loss": self.loss_tracker.result(), "acc": self.acc_tracker.result()}
 
-    @property
     def metrics(self):
         return [self.loss_tracker, self.acc_tracker]
 
@@ -357,8 +317,6 @@ image_augmentation = keras.Sequential(
         layers.experimental.preprocessing.RandomContrast(0.3),
     ]
 )        
-
-# 模型实例化
 cnn_model = get_cnn_model()
 encoder = TransformerEncoderBlock(embed_dim=EMBED_DIM, dense_dim=FF_DIM, num_heads=1)
 decoder = TransformerDecoderBlock(embed_dim=EMBED_DIM, ff_dim=FF_DIM, num_heads=2)
@@ -371,12 +329,9 @@ max_decoded_sentence_length = SEQ_LENGTH - 1
 
 class Picture_langues:
     def __init__(self):
-
         self.caption_model = ImageCaptioningModel(
         cnn_model=cnn_model, encoder=encoder, decoder=decoder, image_aug=image_augmentation,)
-        
         self.load_status = self.caption_model.load_weights("./my_model/checkpoint")
-
     def generate_caption(self,img1):
       
         sample_img = decode_and_resize(img1)

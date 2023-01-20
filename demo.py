@@ -38,344 +38,7 @@ def enum_devices(device = 0 , device_way = False):
             pass
     elif device_way == True:
         pass
-class Draw_initialize:
-    def __init__(self):
 
-        self.hand_num = 0
-        self.vi_ha_color = 'None'
-        self.pic_flag=False
-        self.last_finger_cord_x_flag = {'Left': 0, 'Right': 0}
-        self.last_finger_cord_y_flag= {'Left': 0, 'Right': 0}
-        self.last_finger_arc_degree = {'Left': 0, 'Right': 0}
-        self.right_ha_cir_list = []
-        now = time.time()
-        self.stop_time = {'Left': now, 'Right': now}
-        self.hand_ring_color = {'Left': (255, 180, 0), 'Right': (255, 160, 255)}
-        self.pic_text = {'dog': '狗', 'cat': '猫','chair':'椅子','Cola':'无','scissors':'无','person':'无','bicycle':'自行车','car':'轿车','bus':'公共汽车','pizza':'披萨','apple':'苹果','orange':'橘子','bird':'鸟','book':'书','phone':'手机','hot dog':'热狗','bottle':'瓶子'}
-        self.float_distance = 10
-        self.activate_duration = 0.3
-        self.single_dete_duration = 1
-        self.single_dete_last_time = None
-        self.last_th_pic = None
-        self.text_f=''
-        self.pic_rec=pic_cla()
-        self.pp_ocr = Baidu_PP_OCR()
-        self.picture_language=Picture_langues()
-        self.engine=pyttsx3.init()
-        self.rate=self.engine.getProperty('rate')
-        self.engine.setProperty('rate',150)
-        volume=self.engine.getProperty('volume')
-        self.engine.setProperty('volume',1)
-        self.last_obj_identify = {'dec':None,'ocr':'无'}
-    def say(self,text):
-        self.engine.say(text)
-        self.engine.runAndWait()
-        self.engine.stop()
-    def cv_add_chincese_text(self,img, text, position, textColor=(0, 255, 0), textSize=30):
-        if (isinstance(img, np.ndarray)): 
-            img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-     
-        draw = ImageDraw.Draw(img)
-       
-        fontStyle = ImageFont.truetype(
-            "./fonts/simsun.ttc", textSize, encoding="utf-8")
-        draw.text(position, text, textColor, font=fontStyle)
-        return cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
-    def generateOcrTextArea(self,ocr_text,line_text_num,line_num,x, y, w, h,frame):
-        # First we crop the sub-rect from the image
-        sub_img = frame[y:y+h, x:x+w]
-        green_rect = np.ones(sub_img.shape, dtype=np.uint8) * 0
-
-        res = cv2.addWeighted(sub_img, 0.5, green_rect, 0.5, 1.0)
-        for i in range(line_num):
-            text = ocr_text[(i*line_text_num):(i+1)*line_text_num]
-            res  = self.cv_add_chincese_text(res, text, (10,30*i+10), textColor=(255, 198, 255), textSize=18)
-        return res
-    def cv_add_lable_area(self,text,x, y, w, h,frame):
-        sub_img = frame[y:y+h, x:x+w]
-        green_rect = np.ones(sub_img.shape, dtype=np.uint8)   * 0
-        res = cv2.addWeighted(sub_img, 0.5, green_rect, 0.5, 1.0)
-        res  = self.cv_add_chincese_text(res, text, (10,10), textColor=(196, 255, 255), textSize=30)
-        return res
-    def cv_add_thumb(self,raw_img,frame):
-        img = cv2.imread('D.jpg',1)
-        frame=frame.copy()
-        if  self.last_obj_identify['dec'] == None:
-            resu = self.pic_rec.pic_model_rec(raw_img)
-            print(resu)
-            if len(resu)>0:
-                label_en = resu
-                label_zh = self.pic_text[label_en]
-                if(resu=='Cola' or resu=='scissors'):
-                    label_en='NO'
-                    label_zh ='无'
-                print(label_en)
-                print(label_zh)
-                name=label_zh+'  '+label_en
-                self.last_obj_identify['dec'] = [label_zh,label_en]
-                if self.last_obj_identify['dec'][0]!='无':
-                    obj = Thread(target=self.say, args=(name,))
-                    obj.start()
-            else:
-                self.last_obj_identify['dec'] = ['无','None']
-        frame_height, frame_width, _ = frame.shape
-        # 覆盖
-        raw_img_h, raw_img_w, _ = raw_img.shape
-        th_pic_size = 300
-        th_pic_h_size = math.ceil( raw_img_h * th_pic_size / raw_img_w)
-        th_pic = cv2.resize(raw_img, (th_pic_size, th_pic_h_size))
-        rect_weight = 4
-        # 在缩略图上画框框
-        th_pic = cv2.rectangle(th_pic,(0,0),(th_pic_size,th_pic_h_size),(180, 139, 247),rect_weight)
-        x, y, w, h = (frame_width - th_pic_size),th_pic_h_size,th_pic_size,50
-        # Putting the image back to its position
-        if  self.last_obj_identify['dec'] != ['无','None']:
-            frame[y:y+h, x:x+w] = self.cv_add_lable_area('{label_zh} {label_en}'.format(label_zh=self.last_obj_identify['dec'][0],label_en=self.last_obj_identify['dec'][1]),x, y, w, h,frame)
-        ocr_text = ''
-        if self.last_obj_identify['ocr'] == '无':
-            src_im,text_list = self.pp_ocr.ocr_image(raw_img)
-            th_pic = cv2.resize(src_im, (th_pic_size, th_pic_h_size))
-            if len(text_list) > 0 :
-                ocr_text = ''.join(text_list)
-                print(len(ocr_text))
-                print(type(ocr_text[0]))
-                if(ocr_text[0].isdigit()):
-                    num0=int(ocr_text[0])
-                    num2=int(ocr_text[2])
-                    if(ocr_text[1]=="+"):
-                        num=num0+num2
-                        self.last_obj_identify['ocr']= ocr_text+str(num)
-                        print(self.last_obj_identify['ocr'])
-                        self.text_f=ocr_text[0]+'加'+ocr_text[2]+'等于'+str(num)
-                        obj = Thread(target=self.say, args=(self.text_f,))
-                        obj.start()
-                        self.text_f=''
-                    if(ocr_text[1]=="-"):
-                        
-                        num=num0-num2
-                        self.last_obj_identify['ocr']= ocr_text+str(num)
-                        self.text_f=ocr_text[0]+'减'+ocr_text[2]+'等于'+str(num)
-                        obj = Thread(target=self.say, args=(self.text_f,))
-                        obj.start()
-                        self.text_f=''
-                    if(ocr_text[1]=="*"):
-                        num=num0*num2
-                        self.last_obj_identify['ocr']= ocr_text+str(num)
-                        self.text_f=ocr_text[0]+'乘'+ocr_text[2]+'等于'+str(num)
-                        obj = Thread(target=self.say, args=(self.text_f,))
-                        obj.start()
-                        self.text_f=''
-                    if(ocr_text[1]=="/"):
-                        num=num0/num2
-                        self.last_obj_identify['ocr']= ocr_text+str(num)
-                        self.text_f=ocr_text[0]+'除'+ocr_text[2]+'等于'+str(num)
-                        obj = Thread(target=self.say, args=(self.text_f,))
-                        obj.start()
-                        self.text_f=''
-                else:
-                    
-                        self.last_obj_identify['ocr']= ocr_text
-                        
-            else:
-                # 检测过，无结果
-                self.last_obj_identify['ocr']= 'checked_no'
-        else:
-            ocr_text =  self.last_obj_identify['ocr']
-            if self.last_obj_identify['ocr']!='checked_no':
-                obj = Thread(target=self.say, args=(ocr_text,))
-                obj.start()
-                self.text_f=''
-
-        if(self.last_obj_identify['ocr']=='checked_no'):
-            pic_la_txt=self.picture_language.generate_caption(raw_img)
-            self.last_obj_identify['ocr']=pic_la_txt
-            print(pic_la_txt)
-        frame[0:th_pic_h_size,(frame_width - th_pic_size):frame_width,:] = th_pic
-        if ocr_text != '' and ocr_text != 'checked_no' :
-            line_text_num = 15
-            line_num = math.ceil(len(ocr_text) / line_text_num)
-            y,h = (y+h+20),(32*line_num)
-            frame[y:y+h, x:x+w] = self.generateOcrTextArea(ocr_text,line_text_num,line_num,x, y, w, h,frame)
-        self.last_th_pic = th_pic
-        return frame
-
-
-
-
-    # 画圆环
-    def draw_circle_ring(self, frame, point_x, point_y, arc_radius=80, end=360, color = (255, 0, 255),width=10):
-
-        img = Image.fromarray(frame)
-        shape = [(point_x-arc_radius, point_y-arc_radius),
-                 (point_x+arc_radius, point_y+arc_radius)]
-        img1 = ImageDraw.Draw(img)
-        img1.arc(shape, start=0, end=end, fill=color, width=width)
-        frame = np.asarray(img)
-
-        return frame
-    def clear_danshou(self):
-        self.vi_ha_color = 'None'
-        self.right_ha_cir_list = []
-        self.last_finger_arc_degree = {'Left': 0, 'Right': 0}
-        self.single_dete_last_time = None
-    
-    def single_vi_ha_color(self,x_distance,y_distance,double_hand_flag, finger_cord, frame, frame_copy):
-        self.right_ha_cir_list.append( (finger_cord[0],finger_cord[1]) )
-        for i in range(len(self.right_ha_cir_list)-1) :
-         
-            frame = cv2.line(frame,self.right_ha_cir_list[i],self.right_ha_cir_list[i+1],(255,0,0),5)
-        max_x = max(self.right_ha_cir_list,key=lambda i : i[0])[0]
-        min_x = min(self.right_ha_cir_list,key=lambda i : i[0])[0]
-        max_y = max(self.right_ha_cir_list,key=lambda i : i[1])[1]
-        min_y = min(self.right_ha_cir_list,key=lambda i : i[1])[1]
-        frame = cv2.rectangle(frame,(min_x,min_y),(max_x,max_y),(0,255,0),2)
-        frame = self.draw_circle_ring(
-                    frame, finger_cord[0], finger_cord[1], arc_radius=50, end=360, color=self.hand_ring_color[double_hand_flag],width=15)
-        if (x_distance <= self.float_distance) and (y_distance <= self.float_distance):
-            if (time.time() - self.single_dete_last_time ) > self.single_dete_duration :
-                if( (max_y - min_y) > 100) and( (max_x-min_x) > 100):
-                    print('激活')
-                    if not isinstance(self.last_th_pic, np.ndarray):
-                            
-                        self.last_obj_identify = {'dec':None,'ocr':'无'}
-                        raw_img = frame_copy[min_y:max_y,min_x:max_x,]
-                        frame = self.cv_add_thumb(raw_img,frame)
-                    
-
-        else:
-        # 移动，重新计时
-            self.single_dete_last_time = time.time() # 记录一下时间
-        return frame
-    def Finger_Index_Move_flag(self,double_hand_flag, finger_cord, frame,frame_copy):
-        x_distance = abs(finger_cord[0] - self.last_finger_cord_x_flag[double_hand_flag])
-        y_distance = abs(finger_cord[1] - self.last_finger_cord_y[double_hand_flag])
-        if self.vi_ha_color == 'single':
-            if self.hand_num == 2:
-               self.clear_danshou() 
-            elif double_hand_flag == 'Right':
-                frame = self.single_vi_ha_color(x_distance,y_distance,double_hand_flag, finger_cord, frame , frame_copy)
-        else:
-            if (x_distance <= self.float_distance) and (y_distance <= self.float_distance):
-                if(time.time() - self.stop_time[double_hand_flag]) > self.activate_duration:
-                    arc_degree = 5 * ((time.time() - self.stop_time[double_hand_flag] - self.activate_duration) // 0.01)
-                    if arc_degree <= 360:
-                        frame = self.draw_circle_ring(
-                            frame, finger_cord[0], finger_cord[1], arc_radius=50, end=arc_degree, color=self.hand_ring_color[double_hand_flag], width=15)
-                    else:
-                        frame = self.draw_circle_ring(
-                            frame, finger_cord[0], finger_cord[1], arc_radius=50, end=360, color=self.hand_ring_color[double_hand_flag],width=15)  
-                        self.last_finger_arc_degree[double_hand_flag] = 360
-                        
-                       
-                        if (self.last_finger_arc_degree['Left'] >= 360) and (self.last_finger_arc_degree['Right'] >= 360):
-                           
-                            rect_l = (self.last_finger_cord_x_flag['Left'],self.last_finger_cord_y['Left'])
-                            rect_r = (self.last_finger_cord_x_flag['Right'],self.last_finger_cord_y['Right'])
-                            frame = cv2.rectangle(frame,rect_l,rect_r,(180,180,120),2)
-
-                            if  self.last_obj_identify['dec']:
-                                x, y, w, h = self.last_finger_cord_x_flag['Left'],(self.last_finger_cord_y['Left']-50),120,50
-                                frame[y:y+h, x:x+w] = self.cv_add_lable_area('{label_zh}'.format(label_zh=self.last_obj_identify['dec'][0]),x, y, w, h,frame)
-                            if self.vi_ha_color != 'double':
-                                self.last_obj_identify = {'dec':None,'ocr':'无'}
-                                raw_img = frame_copy[self.last_finger_cord_y['Left']:self.last_finger_cord_y['Right'],self.last_finger_cord_x_flag['Left']:self.last_finger_cord_x_flag['Right'],]
-                                frame = self.cv_add_thumb(raw_img,frame)
-                                  
-                            self.vi_ha_color = 'double'
-                        if (self.hand_num==1) and (self.last_finger_arc_degree['Right'] == 360):
-                            self.vi_ha_color = 'single'
-                            self.single_dete_last_time = time.time() 
-                            self.right_ha_cir_list.append( (finger_cord[0],finger_cord[1]) )
-            else:
-                self.stop_time[double_hand_flag] = time.time()
-                self.last_finger_arc_degree[double_hand_flag] = 0
-        self.last_finger_cord_x_flag[double_hand_flag] = finger_cord[0]
-        self.last_finger_cord_y[double_hand_flag] = finger_cord[1]
-        return frame
-class Reader_main:
-    def __init__(self):
-        self.mp_drawing = mp.solutions.drawing_utils
-        self.mp_drawing_styles = mp.solutions.drawing_styles
-        self.mp_hands = mp.solutions.hands
-        self.draw_operation = Draw_initialize()
-        self.image=None
-    def check_handa_index(self,double_hand_flag):
-        if len(double_hand_flag) == 1:
-            double_hand_flag_list = ['Left' if  double_hand_flag[0].classification[0].label == 'Right' else 'Right']
-        else:
-            double_hand_flag_list = [double_hand_flag[1].classification[0].label,double_hand_flag[0].classification[0].label]
-        return double_hand_flag_list
-
-
-   
-    def re_main(self,img1):
-        
-        resize_w = 1024
-        resize_h = 768
-        with self.mp_hands.Hands(min_detection_confidence=0.7,
-                                 min_tracking_confidence=0.5,
-                                 max_num_hands=2) as hands:
-
-            self.image=img1
-            self.image.flags.writeable = False
-            self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
-            results = hands.process(self.image)
-            self.image.flags.writeable = True
-            self.image = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
-            if isinstance(self.draw_operation.last_th_pic, np.ndarray):
-                self.image  = self.draw_operation.cv_add_thumb(self.draw_operation.last_th_pic,self.image )
-
-            hand_num = 0
-            if results.multi_hand_landmarks:
-                double_hand_flag_list =  self.check_handa_index(results.multi_double_hand_flag)
-                hand_num = len(double_hand_flag_list)
-                self.draw_operation.hand_num = hand_num
-                frame_copy = self.image.copy()
-                for hand_index,hand_landmarks in enumerate(results.multi_hand_landmarks):
-                    if hand_index>1:
-                        hand_index = 1  
-                    self.mp_drawing.draw_landmarks(
-                        self.image,
-                        hand_landmarks,
-                        self.mp_hands.HAND_CONNECTIONS,
-                        self.mp_drawing_styles.get_default_hand_landmarks_style(),
-                        self.mp_drawing_styles.get_default_hand_connections_style())
-                    landmark_list = []
-                    paw_x_list = []
-                    paw_y_list = []
-                    for landmark_id, finger_axis in enumerate(
-                            hand_landmarks.landmark):
-                        landmark_list.append([
-                            landmark_id, finger_axis.x, finger_axis.y,
-                            finger_axis.z
-                        ])
-                        paw_x_list.append(finger_axis.x)
-                        paw_y_list.append(finger_axis.y)
-                    if landmark_list:
-                        ratio_x_to_pixel = lambda x: math.ceil(x * resize_w)
-                        ratio_y_to_pixel = lambda y: math.ceil(y * resize_h)
-                        paw_left_top_x,paw_right_bottom_x = map(ratio_x_to_pixel,[min(paw_x_list),max(paw_x_list)])
-                        paw_left_top_y,paw_right_bottom_y = map(ratio_y_to_pixel,[min(paw_y_list),max(paw_y_list)])
-                        index_finger_tip = landmark_list[8]
-                        index_finger_tip_x =ratio_x_to_pixel(index_finger_tip[1])
-                        index_finger_tip_y =ratio_y_to_pixel(index_finger_tip[2])
-                        middle_finger_tip = landmark_list[12]
-                        middle_finger_tip_x =ratio_x_to_pixel(middle_finger_tip[1])
-                        middle_finger_tip_y =ratio_y_to_pixel(middle_finger_tip[2])
-                        l_r_hand_text = double_hand_flag_list[hand_index][:1]
-                        cv2.putText(self.image, "{hand} x:{x} y:{y}".format(hand=l_r_hand_text,x=index_finger_tip_x,y=index_finger_tip_y) , (paw_left_top_x-30+10,paw_left_top_y-40),
-                        cv2.FONT_HERSHEY_PLAIN, 1, (255, 180, 255), 2)
-                        cv2.rectangle(self.image,(paw_left_top_x-30,paw_left_top_y-30),(paw_right_bottom_x+30,paw_right_bottom_y+30),(180, 139, 247),1)
-                        line_len = math.hypot((index_finger_tip_x-middle_finger_tip_x),(index_finger_tip_y-middle_finger_tip_y))
-                        if line_len < 50 and double_hand_flag_list[hand_index] == 'Right':
-                            self.draw_operation.clear_danshou()
-                            self.draw_operation.last_th_pic = None
-                        self.image = self.draw_operation.Finger_Index_Move_flag(double_hand_flag_list[hand_index],[index_finger_tip_x,index_finger_tip_y],self.image,frame_copy)
-            self.image = self.draw_operation.cv_add_chincese_text(self.image, "虚拟点读学习系统" , (10, 30), textColor=(0,160,180), textSize=50)
-            cv2.imshow('virtual', self.image)
-
-            k = cv2.waitKey(27) & 0xff
-control = Reader_main() 
 def identify_different_devices(deviceList):
     # 判断不同类型设备，并输出相关信息
     for i in range(0, deviceList.nDeviceNum):
@@ -516,6 +179,308 @@ def identify_different_devices(deviceList):
                 stdeviceversion = stdeviceversion + chr(per)
             print("设备当前使用固件版本 : %s" % stdeviceversion)
  
+class Draw_initialize:
+    def __init__(self):
+        self.h_amount = 0
+        self.pic_text = {'dog': '狗', 'cat': '猫','chair':'椅子','Cola':'无','scissors':'无','person':'无','bicycle':'自行车','car':'轿车','bus':'公共汽车','pizza':'披萨','apple':'苹果','orange':'橘子','bird':'鸟','book':'书','phone':'手机','hot dog':'热狗','bottle':'瓶子'}
+        self.engine=pyttsx3.init()
+        self.rate=self.engine.getProperty('rate')
+        self.engine.setProperty('rate',150)
+        volume=self.engine.getProperty('volume')
+        self.engine.setProperty('volume',1)
+        self.si_time = None
+        self.last_th_pic = None
+        self.text_f=''
+        self.pic_rec=pic_cla()
+        self.v_color = 'No'
+        self.pic_flag=False
+        self.right_ha_cir_list = []
+        now = time.time()
+        self.close_time = {'Le': now, 'Ri': now}
+        self.hand_ring_color = {'Le': (255, 180, 0), 'Ri': (255, 160, 255)}
+        self._cord_x_flag = {'Le': 0, 'Ri': 0}
+        self.cord_y_flag= {'Le': 0, 'Ri': 0}
+        self.arc_degree = {'Le': 0, 'Ri': 0}
+        self.pp_ocr = Baidu_PP_OCR()
+        self.picture_language=Picture_langues()
+        self.last_obj_identify = {'obj':None,'ocr':'无'}
+    def say(self,text):
+        self.engine.say(text)
+        self.engine.runAndWait()
+        self.engine.stop()
+    def write_la_area(self,text,x, y, w, h,videoframe):
+        sub_img = videoframe[y:y+h, x:x+w]
+        rect = np.ones(sub_img.shape, dtype=np.uint8)   * 0
+        res = cv2.addWeighted(sub_img, 0.5, rect, 0.5, 1.0)
+        res  = self.write_chincese_text(res, text, (10,10), textColor=(196, 255, 255), textSize=30)
+        return res
+      def write_chincese_text(self,img, text, position, textColor=(0, 255, 0), textSize=30):
+        if (isinstance(img, np.ndarray)): 
+            img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        draw = ImageDraw.Draw(img)
+        fontStyle = ImageFont.truetype(
+            "./fonts/simsun.ttc", textSize, encoding="utf-8")
+        draw.text(position, text, textColor, font=fontStyle)
+        return cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
+    def dwriteOcrTxt(self,ocr_text,15,line_num,x, y, w, h,videoframe):
+        sub_img = videoframe[y:y+h, x:x+w]
+        rect = np.ones(sub_img.shape, dtype=np.uint8) * 0
+        res = cv2.addWeighted(sub_img, 0.5, rect, 0.5, 1.0)
+        for i in range(line_num):
+            text = ocr_text[(i*15):(i+1)*15]
+            res  = self.write_chincese_text(res, text, (10,30*i+10), textColor=(255, 198, 255), textSize=18)
+        return res
+    def add_thu(self,obj_img,videoframe):
+        img = cv2.imread('D.jpg',1)
+        videoframe=videoframe.copy()
+        if  self.last_obj_identify['obj'] == None:
+            resu = self.pic_rec.pic_model_rec(obj_img)
+            print(resu)
+            if len(resu)>0:
+                LaEnglish = resu
+                LaChinese = self.pic_text[LaEnglish]
+                if(resu=='Cola' or resu=='scissors'):
+                    LaEnglish='NO'
+                    LaChinese ='无'
+                print(LaEnglish)
+                print(LaChinese)
+                name=LaChinese+'  '+LaEnglish
+                self.last_obj_identify['obj'] = [LaChinese,LaEnglish]
+                if self.last_obj_identify['obj'][0]!='无':
+                    obj = Thread(target=self.say, args=(name,))
+                    obj.start()
+            else:
+                self.last_obj_identify['obj'] = ['无','No']
+        videoframe_height, videoframe_width, _ = videoframe.shape
+        obj_img_h, obj_img_w, _ = obj_img.shape
+        th_pic_h_size = math.ceil( obj_img_h * 300 / obj_img_w)
+        th_pic = cv2.resize(obj_img, (300, th_pic_h_size))
+        rect_weight = 4
+        th_pic = cv2.rectangle(th_pic,(0,0),(300,th_pic_h_size),(180, 139, 247),rect_weight)
+        x, y, w, h = (videoframe_width - 300),th_pic_h_size,300,50
+        if  self.last_obj_identify['obj'] != ['无','No']:
+            videoframe[y:y+h, x:x+w] = self.write_la_area('{LaChinese} {LaEnglish}'.format(LaChinese=self.last_obj_identify['obj'][0],LaEnglish=self.last_obj_identify['obj'][1]),x, y, w, h,videoframe)
+        ocr_text = ''
+        if self.last_obj_identify['ocr'] == '无':
+            src_im,text_list = self.pp_ocr.ocr_image(obj_img)
+            th_pic = cv2.resize(src_im, (300, th_pic_h_size))
+            if len(text_list) > 0 :
+                ocr_text = ''.join(text_list)
+                print(len(ocr_text))
+                print(type(ocr_text[0]))
+                if(ocr_text[0].isdigit()):
+                    num0=int(ocr_text[0])
+                    num2=int(ocr_text[2])
+                    if(ocr_text[1]=="+"):
+                        num=num0+num2
+                        self.last_obj_identify['ocr']= ocr_text+str(num)
+                        print(self.last_obj_identify['ocr'])
+                        self.text_f=ocr_text[0]+'加'+ocr_text[2]+'等于'+str(num)
+                        obj = Thread(target=self.say, args=(self.text_f,))
+                        obj.start()
+                        self.text_f=''
+                    if(ocr_text[1]=="-"):
+                        num=num0-num2
+                        self.last_obj_identify['ocr']= ocr_text+str(num)
+                        self.text_f=ocr_text[0]+'减'+ocr_text[2]+'等于'+str(num)
+                        obj = Thread(target=self.say, args=(self.text_f,))
+                        obj.start()
+                        self.text_f=''
+                    if(ocr_text[1]=="*"):
+                        num=num0*num2
+                        self.last_obj_identify['ocr']= ocr_text+str(num)
+                        self.text_f=ocr_text[0]+'乘'+ocr_text[2]+'等于'+str(num)
+                        obj = Thread(target=self.say, args=(self.text_f,))
+                        obj.start()
+                        self.text_f=''
+                    if(ocr_text[1]=="/"):
+                        num=num0/num2
+                        self.last_obj_identify['ocr']= ocr_text+str(num)
+                        self.text_f=ocr_text[0]+'除'+ocr_text[2]+'等于'+str(num)
+                        obj = Thread(target=self.say, args=(self.text_f,))
+                        obj.start()
+                        self.text_f=''
+                else:
+                    
+                        self.last_obj_identify['ocr']= ocr_text            
+            else:
+                self.last_obj_identify['ocr']= 'checked_no'
+        else:
+            ocr_text =  self.last_obj_identify['ocr']
+            if self.last_obj_identify['ocr']!='checked_no':
+                obj = Thread(target=self.say, args=(ocr_text,))
+                obj.start()
+                self.text_f=''
+
+        if(self.last_obj_identify['ocr']=='checked_no'):
+            pic_la_txt=self.picture_language.generate_caption(obj_img)
+            self.last_obj_identify['ocr']=pic_la_txt
+            print(pic_la_txt)
+        videoframe[0:th_pic_h_size,(videoframe_width - 300):videoframe_width,:] = th_pic
+        if ocr_text != '' and ocr_text != 'checked_no' :
+            line_num = math.ceil(len(ocr_text) / 15)
+            y,h = (y+h+20),(32*line_num)
+            videoframe[y:y+h, x:x+w] = self.dwriteOcrTxt(ocr_text,15,line_num,x, y, w, h,videoframe)
+        self.last_th_pic = th_pic
+        return videoframe
+    def draw_circle_ring(self, videoframe, point_x, point_y, arc_radius=80, end=360, color = (255, 0, 255),width=10):
+        img = Image.fromarray(videoframe)
+        shape = [(point_x-arc_radius, point_y-arc_radius),
+                 (point_x+arc_radius, point_y+arc_radius)]
+        img1 = ImageDraw.Draw(img)
+        img1.arc(shape, start=0, end=end, fill=color, width=width)
+        videoframe = np.asarray(img)
+        return videoframe
+    def clear_danshou(self):
+        self.v_color = 'No'
+        self.right_ha_cir_list = []
+        self.arc_degree = {'Le': 0, 'Ri': 0}
+        self.si_time = None
+    def single_vi_ha_color(self,x_dis,y_dis,ha_flag, f_cord, videoframe, videoframe_copy):
+        self.right_ha_cir_list.append( (f_cord[0],f_cord[1]) )
+        for i in range(len(self.right_ha_cir_list)-1) :
+            videoframe = cv2.line(videoframe,self.right_ha_cir_list[i],self.right_ha_cir_list[i+1],(255,0,0),5)
+        max_x = max(self.right_ha_cir_list,key=lambda i : i[0])[0]
+        min_x = min(self.right_ha_cir_list,key=lambda i : i[0])[0]
+        max_y = max(self.right_ha_cir_list,key=lambda i : i[1])[1]
+        min_y = min(self.right_ha_cir_list,key=lambda i : i[1])[1]
+        videoframe = cv2.rectangle(videoframe,(min_x,min_y),(max_x,max_y),(0,255,0),2)
+        videoframe = self.draw_circle_ring(
+                    videoframe, f_cord[0], f_cord[1], arc_radius=50, end=360, color=self.hand_ring_color[ha_flag],15)
+        if (x_dis <= 10) and (y_dis <= 10):
+            if (time.time() - self.si_time ) > 1:
+                if( (max_y - min_y) > 100) and( (max_x-min_x) > 100):
+                    if not isinstance(self.last_th_pic, np.ndarray):    
+                        self.last_obj_identify = {'obj':None,'ocr':'无'}
+                        obj_img = videoframe_copy[min_y:max_y,min_x:max_x,]
+                        videoframe = self.add_thu(obj_img,videoframe)
+        else:
+            self.si_time = time.time()
+        return videoframe
+    def Finger_Index_Move_flag(self,ha_flag, f_cord, videoframe,videoframe_copy):
+        x_dis = abs(f_cord[0] - self._cord_x_flag[ha_flag])
+        y_dis = abs(f_cord[1] - self.last_f_cord_y[ha_flag])
+        if self.vi_ha_color == 'single_model':
+            if self.h_amount == 2:
+               self.clear_danshou() 
+            elif ha_flag == 'Ri':
+                videoframe = self.single_vi_ha_color(x_dis,y_dis,ha_flag, f_cord, videoframe , videoframe_copy)
+        else:
+            if (x_dis <= 10) and (y_dis <= 10):
+                if(time.time() - self.close_time[ha_flag]) > 0.3:
+                    arc_degree = 5 * ((time.time() - self.close_time[ha_flag] - 0.3)
+                    if arc_degree <= 360:
+                        videoframe = self.draw_circle_ring(
+                            videoframe, f_cord[0], f_cord[1], arc_radius=50, end=arc_degree, color=self.hand_ring_color[ha_flag], width=15)
+                    else:
+                        videoframe = self.draw_circle_ring(
+                            videoframe, f_cord[0], f_cord[1], arc_radius=50, end=360, color=self.hand_ring_color[ha_flag],width=15)  
+                        self.arc_degree[ha_flag] = 360
+                        if (self.arc_degree['Le'] >= 360) and (self.arc_degree['Ri'] >= 360):
+                           
+                            rect_l = (self._cord_x_flag['Le'],self.last_f_cord_y['Le'])
+                            rect_r = (self._cord_x_flag['Ri'],self.last_f_cord_y['Ri'])
+                            videoframe = cv2.rectangle(videoframe,rect_l,rect_r,(180,180,120),2)
+
+                            if  self.last_obj_identify['obj']:
+                                x, y, w, h = self._cord_x_flag['Le'],(self.last_f_cord_y['Le']-50),120,50
+                                videoframe[y:y+h, x:x+w] = self.write_la_area('{LaChinese}'.format(LaChinese=self.last_obj_identify['obj'][0]),x, y, w, h,videoframe)
+                            if self.vi_ha_color != 'double':
+                                self.last_obj_identify = {'obj':None,'ocr':'无'}
+                                obj_img = videoframe_copy[self.last_f_cord_y['Le']:self.last_f_cord_y['Ri'],self._cord_x_flag['Le']:self._cord_x_flag['Ri'],]
+                                videoframe = self.add_thu(obj_img,videoframe)  
+                            self.vi_ha_color = 'double'
+                        if (self.h_amount==1) and (self.arc_degree['Ri'] == 360):
+                            self.vi_ha_color = 'single_model'
+                            self.si_time = time.time() 
+                            self.right_ha_cir_list.append( (f_cord[0],f_cord[1]) )
+            else:
+                self.close_time[ha_flag] = time.time()
+                self.arc_degree[ha_flag] = 0
+        self._cord_x_flag[ha_flag] = f_cord[0]
+        self.last_f_cord_y[ha_flag] = f_cord[1]
+        return videoframe
+class Reader_main:
+    def __init__(self):
+        self.drawing = mp.solutions.drawing_utils
+        self.drawing_styles = mp.solutions.drawing_styles
+        self.mp_hands = mp.solutions.hands
+        self.draw_operation = Draw_initialize()
+        self.image=None
+    def check_handa_index(self,ha_flag):
+        if len(ha_flag) == 1:
+            ha_flag_list = ['Le' if  ha_flag[0].classification[0].label == 'Ri' else 'Ri']
+        else:
+            ha_flag_list = [ha_flag[1].classification[0].label,ha_flag[0].classification[0].label]
+        return ha_flag_list
+    def re_main(self,img1):
+        resize_w = 1024
+        resize_h = 768
+        with self.mp_hands.Hands(min_detection_confidence=0.7,
+                                 min_tracking_confidence=0.5,
+                                 max_num_hands=2) as hands:
+            self.image=img1
+            self.image.flags.writeable = False
+            self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
+            results = hands.process(self.image)
+            self.image.flags.writeable = True
+            self.image = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
+            if isinstance(self.draw_operation.last_th_pic, np.ndarray):
+                self.image  = self.draw_operation.add_thu(self.draw_operation.last_th_pic,self.image )
+            h_amount = 0
+            if results.multi_hand_landmarks:
+                ha_flag_list =  self.check_handa_index(results.multi_ha_flag)
+                h_amount = len(ha_flag_list)
+                self.draw_operation.h_amount = h_amount
+                videoframe_copy = self.image.copy()
+                for hand_index,hand_landmarks in enumerate(results.multi_hand_landmarks):
+                    if hand_index>1:
+                        hand_index = 1  
+                    self.drawing.draw_landmarks(
+                        self.image,
+                        hand_landmarks,
+                        self.mp_hands.HAND_CONNECTIONS,
+                        self.drawing_styles.get_default_hand_landmarks_style(),
+                        self.drawing_styles.get_default_hand_connections_style())
+                    x_list = []
+                    y_list = []
+                    lm_list = []
+                    for landmark_id, finger_axis in enumerate(
+                            hand_landmarks.landmark):
+                        lm_list.append([
+                            landmark_id, finger_axis.x, finger_axis.y,
+                            finger_axis.z
+                        ])
+                        x_list.append(finger_axis.x)
+                        y_list.append(finger_axis.y)
+                    if lm_list:
+                        ratio_x_to_pixel = lambda x: math.ceil(x * resize_w)
+                        ratio_y_to_pixel = lambda y: math.ceil(y * resize_h)
+                        paw_left_top_x,paw_right_bottom_x = map(ratio_x_to_pixel,[min(x_list),max(x_list)])
+                        paw_left_top_y,paw_right_bottom_y = map(ratio_y_to_pixel,[min(y_list),max(y_list)])
+                        index_finger_tip = lm_list[8]
+                        index_finger_tip_x =ratio_x_to_pixel(index_finger_tip[1])
+                        index_finger_tip_y =ratio_y_to_pixel(index_finger_tip[2])
+                        middle_finger_tip = lm_list[12]
+                        middle_finger_tip_x =ratio_x_to_pixel(middle_finger_tip[1])
+                        middle_finger_tip_y =ratio_y_to_pixel(middle_finger_tip[2])
+                        l_r_hand_text = ha_flag_list[hand_index][:1]
+                        cv2.putText(self.image, "{hand} x:{x} y:{y}".format(hand=l_r_hand_text,x=index_finger_tip_x,y=index_finger_tip_y) , (paw_left_top_x-30+10,paw_left_top_y-40),
+                        cv2.FONT_HERSHEY_PLAIN, 1, (255, 180, 255), 2)
+                        cv2.rectangle(self.image,(paw_left_top_x-30,paw_left_top_y-30),(paw_right_bottom_x+30,paw_right_bottom_y+30),(180, 139, 247),1)
+                        line_len = math.hypot((index_finger_tip_x-middle_finger_tip_x),(index_finger_tip_y-middle_finger_tip_y))
+                        if line_len < 50 and ha_flag_list[hand_index] == 'Ri':
+                            self.draw_operation.clear_danshou()
+                            self.draw_operation.last_th_pic = None
+                        self.image = self.draw_operation.Finger_Index_Move_flag(ha_flag_list[hand_index],[index_finger_tip_x,index_finger_tip_y],self.image,videoframe_copy)
+            self.image = self.draw_operation.write_chincese_text(self.image, "虚拟点读学习系统" , (10, 30), textColor=(0,160,180), textSize=50)
+            cv2.imshow('vir', self.image)
+
+            k = cv2.waitKey(27) & 0xff
+control = Reader_main() 
+
+
+
 # 输入需要连接的相机的序号
 def input_num_camera(deviceList):
     nConnectionNum = input("please input the number of the device to connect:")
@@ -734,22 +699,22 @@ def image_show(image):
     control.re_main(image)
 
 # 需要显示的图像数据转换
-def image_control(data , stFrameInfo):
-    if stFrameInfo.enPixelType == 17301505:
-        image = data.reshape((stFrameInfo.nHeight, stFrameInfo.nWidth))
-        image_show(image=image , name = stFrameInfo.nHeight)
-    elif stFrameInfo.enPixelType == 17301514:
-        data = data.reshape(stFrameInfo.nHeight, stFrameInfo.nWidth, -1)
+def image_control(data , stvideoframeInfo):
+    if stvideoframeInfo.enPixelType == 17301505:
+        image = data.reshape((stvideoframeInfo.nHeight, stvideoframeInfo.nWidth))
+        image_show(image=image , name = stvideoframeInfo.nHeight)
+    elif stvideoframeInfo.enPixelType == 17301514:
+        data = data.reshape(stvideoframeInfo.nHeight, stvideoframeInfo.nWidth, -1)
         image = cv2.cvtColor(data, cv2.COLOR_BAYER_GB2RGB)
-        image_show(image=image, name = stFrameInfo.nHeight)
-    elif stFrameInfo.enPixelType == 35127316:
-        data = data.reshape(stFrameInfo.nHeight, stFrameInfo.nWidth, -1)
+        image_show(image=image, name = stvideoframeInfo.nHeight)
+    elif stvideoframeInfo.enPixelType == 35127316:
+        data = data.reshape(stvideoframeInfo.nHeight, stvideoframeInfo.nWidth, -1)
         image = cv2.cvtColor(data, cv2.COLOR_RGB2BGR)
-        image_show(image=image, name = stFrameInfo.nHeight)
-    elif stFrameInfo.enPixelType == PixelType_Gvsp_BGR8_Packed :
-        data = data.reshape(stFrameInfo.nHeight, stFrameInfo.nWidth, -1)
+        image_show(image=image, name = stvideoframeInfo.nHeight)
+    elif stvideoframeInfo.enPixelType == PixelType_Gvsp_BGR8_Packed :
+        data = data.reshape(stvideoframeInfo.nHeight, stvideoframeInfo.nWidth, -1)
         image = cv2.cvtColor(data, cv2.COLOR_YUV2BGR_Y422)
-        image_show(image = image, name = stFrameInfo.nHeight)
+        image_show(image = image, name = stvideoframeInfo.nHeight)
 def IsImageColor(enType):
     dates = {
         PixelType_Gvsp_RGB8_Packed: 'color',
@@ -787,36 +752,36 @@ def IsImageColor(enType):
 def access_get_image(cam , active_way = "getImagebuffer"):
     """
     :param cam:     相机实例
-    :active_way:主动取流方式的不同方法 分别是（getImagebuffer）（getoneframetimeout）
+    :active_way:主动取流方式的不同方法 分别是（getImagebuffer）（getonevideoframetimeout）
     :return:
     """
        #global img_buff
     img_buff = None
-    stOutFrame = MV_FRAME_OUT()
-    memset(byref(stOutFrame), 0, sizeof(stOutFrame))
+    stOutvideoframe = MV_videoframe_OUT()
+    memset(byref(stOutvideoframe), 0, sizeof(stOutvideoframe))
     while True:
-        ret = cam.MV_CC_GetImageBuffer(stOutFrame, 1000)
-        if None != stOutFrame.pBufAddr and 0 == ret:
-            print ("MV_CC_GetImageBuffer: Width[%d], Height[%d], nFrameNum[%d]"  % (stOutFrame.stFrameInfo.nWidth, stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nFrameNum))
+        ret = cam.MV_CC_GetImageBuffer(stOutvideoframe, 1000)
+        if None != stOutvideoframe.pBufAddr and 0 == ret:
+            print ("MV_CC_GetImageBuffer: Width[%d], Height[%d], nvideoframeNum[%d]"  % (stOutvideoframe.stvideoframeInfo.nWidth, stOutvideoframe.stvideoframeInfo.nHeight, stOutvideoframe.stvideoframeInfo.nvideoframeNum))
             stConvertParam = MV_CC_PIXEL_CONVERT_PARAM()
             memset(byref(stConvertParam), 0, sizeof(stConvertParam))
-            if IsImageColor(stOutFrame.stFrameInfo.enPixelType) == 'mono':
+            if IsImageColor(stOutvideoframe.stvideoframeInfo.enPixelType) == 'mono':
                 print("mono!")
                 stConvertParam.enDstPixelType = PixelType_Gvsp_Mono8
-                nConvertSize = stOutFrame.stFrameInfo.nWidth * stOutFrame.stFrameInfo.nHeight
-            elif IsImageColor(stOutFrame.stFrameInfo.enPixelType) == 'color':
+                nConvertSize = stOutvideoframe.stvideoframeInfo.nWidth * stOutvideoframe.stvideoframeInfo.nHeight
+            elif IsImageColor(stOutvideoframe.stvideoframeInfo.enPixelType) == 'color':
                 print("color!")
                 stConvertParam.enDstPixelType = PixelType_Gvsp_BGR8_Packed  # opecv要用BGR，不能使用RGB
-                nConvertSize = stOutFrame.stFrameInfo.nWidth * stOutFrame.stFrameInfo.nHeight * 3
+                nConvertSize = stOutvideoframe.stvideoframeInfo.nWidth * stOutvideoframe.stvideoframeInfo.nHeight * 3
             else:
                 print("not support!!!")
             if img_buff is None:
-                img_buff = (c_ubyte * stOutFrame.stFrameInfo.nFrameLen)()
-            stConvertParam.nWidth = stOutFrame.stFrameInfo.nWidth
-            stConvertParam.nHeight = stOutFrame.stFrameInfo.nHeight
-            stConvertParam.pSrcData = cast(stOutFrame.pBufAddr, POINTER(c_ubyte))
-            stConvertParam.nSrcDataLen = stOutFrame.stFrameInfo.nFrameLen
-            stConvertParam.enSrcPixelType = stOutFrame.stFrameInfo.enPixelType
+                img_buff = (c_ubyte * stOutvideoframe.stvideoframeInfo.nvideoframeLen)()
+            stConvertParam.nWidth = stOutvideoframe.stvideoframeInfo.nWidth
+            stConvertParam.nHeight = stOutvideoframe.stvideoframeInfo.nHeight
+            stConvertParam.pSrcData = cast(stOutvideoframe.pBufAddr, POINTER(c_ubyte))
+            stConvertParam.nSrcDataLen = stOutvideoframe.stvideoframeInfo.nvideoframeLen
+            stConvertParam.enSrcPixelType = stOutvideoframe.stvideoframeInfo.enPixelType
             stConvertParam.pDstBuffer = (c_ubyte * nConvertSize)()
             stConvertParam.nDstBufferSize = nConvertSize
             ret = cam.MV_CC_ConvertPixelType(stConvertParam)
@@ -839,61 +804,61 @@ def access_get_image(cam , active_way = "getImagebuffer"):
                 # finally:
                 #     file_open.close()
             # 黑白处理
-            if IsImageColor(stOutFrame.stFrameInfo.enPixelType) == 'mono':
+            if IsImageColor(stOutvideoframe.stvideoframeInfo.enPixelType) == 'mono':
                 img_buff = (c_ubyte * stConvertParam.nDstLen)()
                 cdll.msvcrt.memcpy(byref(img_buff),stConvertParam.pDstBuffer,stConvertParam.nDstLen)
                 img_buff = np.frombuffer(img_buff, count=int(stConvertParam.nDstBufferSize), dtype=np.uint8)
-                img_buff = img_buff.reshape((stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth))
+                img_buff = img_buff.reshape((stOutvideoframe.stvideoframeInfo.nHeight, stOutvideoframe.stvideoframeInfo.nWidth))
                 print("mono ok!!")
                 image_show(image=img_buff)  # 显示图像函数
             # 彩色处理
-            if IsImageColor(stOutFrame.stFrameInfo.enPixelType) == 'color':
+            if IsImageColor(stOutvideoframe.stvideoframeInfo.enPixelType) == 'color':
                 img_buff = (c_ubyte * stConvertParam.nDstLen)()
                 cdll.msvcrt.memcpy(byref(img_buff), stConvertParam.pDstBuffer, stConvertParam.nDstLen)
                 img_buff = np.frombuffer(img_buff, count=int(stConvertParam.nDstBufferSize), dtype=np.uint8)#data以流的形式读入转化成ndarray对象
-                img_buff = img_buff.reshape(stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth,3)
+                img_buff = img_buff.reshape(stOutvideoframe.stvideoframeInfo.nHeight, stOutvideoframe.stvideoframeInfo.nWidth,3)
                 print("color ok!!")
                 image_show(image=img_buff)  # 显示图像函数
             else:
                 print("no data[0x%x]" % ret)   
-        nRet = cam.MV_CC_FreeImageBuffer(stOutFrame)
+        nRet = cam.MV_CC_FreeImageBuffer(stOutvideoframe)
         if g_bExit == True:
             break
 winfun_ctype = WINFUNCTYPE
-stFrameInfo = POINTER(MV_FRAME_OUT_INFO_EX)
+stvideoframeInfo = POINTER(MV_videoframe_OUT_INFO_EX)
 pData = POINTER(c_ubyte)
-FrameInfoCallBack = winfun_ctype(None, pData, stFrameInfo, c_void_p)
-def image_callback(pData, pFrameInfo, pUser):
+videoframeInfoCallBack = winfun_ctype(None, pData, stvideoframeInfo, c_void_p)
+def image_callback(pData, pvideoframeInfo, pUser):
     global img_buff
     img_buff = None
-    stFrameInfo = cast(pFrameInfo, POINTER(MV_FRAME_OUT_INFO_EX)).contents
-    if stFrameInfo:
-        print ("get one frame: Width[%d], Height[%d], nFrameNum[%d]" % (stFrameInfo.nWidth, stFrameInfo.nHeight, stFrameInfo.nFrameNum))
-    if img_buff is None and stFrameInfo.enPixelType == 17301505:
-        img_buff = (c_ubyte * stFrameInfo.nWidth*stFrameInfo.nHeight)()
-        cdll.msvcrt.memcpy(byref(img_buff) , pData , stFrameInfo.nWidth*stFrameInfo.nHeight)
-        data = np.frombuffer(img_buff , count = int(stFrameInfo.nWidth*stFrameInfo.nHeight) , dtype = np.uint8)
-        image_control(data=data, stFrameInfo=stFrameInfo)
+    stvideoframeInfo = cast(pvideoframeInfo, POINTER(MV_videoframe_OUT_INFO_EX)).contents
+    if stvideoframeInfo:
+        print ("get one videoframe: Width[%d], Height[%d], nvideoframeNum[%d]" % (stvideoframeInfo.nWidth, stvideoframeInfo.nHeight, stvideoframeInfo.nvideoframeNum))
+    if img_buff is None and stvideoframeInfo.enPixelType == 17301505:
+        img_buff = (c_ubyte * stvideoframeInfo.nWidth*stvideoframeInfo.nHeight)()
+        cdll.msvcrt.memcpy(byref(img_buff) , pData , stvideoframeInfo.nWidth*stvideoframeInfo.nHeight)
+        data = np.frombuffer(img_buff , count = int(stvideoframeInfo.nWidth*stvideoframeInfo.nHeight) , dtype = np.uint8)
+        image_control(data=data, stvideoframeInfo=stvideoframeInfo)
         del img_buff
-    elif img_buff is None and stFrameInfo.enPixelType == 17301514:
-        img_buff = (c_ubyte * stFrameInfo.nWidth*stFrameInfo.nHeight)()
-        cdll.msvcrt.memcpy(byref(img_buff) , pData , stFrameInfo.nWidth*stFrameInfo.nHeight)
-        data = np.frombuffer(img_buff , count = int(stFrameInfo.nWidth*stFrameInfo.nHeight) , dtype = np.uint8)
-        image_control(data=data, stFrameInfo=stFrameInfo)
+    elif img_buff is None and stvideoframeInfo.enPixelType == 17301514:
+        img_buff = (c_ubyte * stvideoframeInfo.nWidth*stvideoframeInfo.nHeight)()
+        cdll.msvcrt.memcpy(byref(img_buff) , pData , stvideoframeInfo.nWidth*stvideoframeInfo.nHeight)
+        data = np.frombuffer(img_buff , count = int(stvideoframeInfo.nWidth*stvideoframeInfo.nHeight) , dtype = np.uint8)
+        image_control(data=data, stvideoframeInfo=stvideoframeInfo)
         del img_buff
-    elif img_buff is None and stFrameInfo.enPixelType == 35127316:
-        img_buff = (c_ubyte * stFrameInfo.nWidth * stFrameInfo.nHeight*3)()
-        cdll.msvcrt.memcpy(byref(img_buff), pData, stFrameInfo.nWidth * stFrameInfo.nHeight*3)
-        data = np.frombuffer(img_buff, count=int(stFrameInfo.nWidth * stFrameInfo.nHeight*3), dtype=np.uint8)
-        image_control(data=data, stFrameInfo=stFrameInfo)
+    elif img_buff is None and stvideoframeInfo.enPixelType == 35127316:
+        img_buff = (c_ubyte * stvideoframeInfo.nWidth * stvideoframeInfo.nHeight*3)()
+        cdll.msvcrt.memcpy(byref(img_buff), pData, stvideoframeInfo.nWidth * stvideoframeInfo.nHeight*3)
+        data = np.frombuffer(img_buff, count=int(stvideoframeInfo.nWidth * stvideoframeInfo.nHeight*3), dtype=np.uint8)
+        image_control(data=data, stvideoframeInfo=stvideoframeInfo)
         del img_buff
-    elif img_buff is None and stFrameInfo.enPixelType == 34603039:
-        img_buff = (c_ubyte * stFrameInfo.nWidth * stFrameInfo.nHeight * 2)()
-        cdll.msvcrt.memcpy(byref(img_buff), pData, stFrameInfo.nWidth * stFrameInfo.nHeight * 2)
-        data = np.frombuffer(img_buff, count=int(stFrameInfo.nWidth * stFrameInfo.nHeight * 2), dtype=np.uint8)
-        image_control(data=data, stFrameInfo=stFrameInfo)
+    elif img_buff is None and stvideoframeInfo.enPixelType == 34603039:
+        img_buff = (c_ubyte * stvideoframeInfo.nWidth * stvideoframeInfo.nHeight * 2)()
+        cdll.msvcrt.memcpy(byref(img_buff), pData, stvideoframeInfo.nWidth * stvideoframeInfo.nHeight * 2)
+        data = np.frombuffer(img_buff, count=int(stvideoframeInfo.nWidth * stvideoframeInfo.nHeight * 2), dtype=np.uint8)
+        image_control(data=data, stvideoframeInfo=stvideoframeInfo)
         del img_buff
-CALL_BACK_FUN = FrameInfoCallBack(image_callback)
+CALL_BACK_FUN = videoframeInfoCallBack(image_callback)
  
 # 事件回调
 stEventInfo = POINTER(MV_EVENT_OUT_INFO)
